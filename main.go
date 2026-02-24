@@ -23,9 +23,13 @@ type LinearIssue struct {
         Title      string `json:"title"`
         URL        string `json:"url"`
         AssigneeID string `json:"assigneeId"`
+        State      struct {
+            Name string `json:"name"`
+        } `json:"state"`
     } `json:"data"`
     UpdatedFrom struct {
         AssigneeID *string `json:"assigneeId"`
+        StateID    *string `json:"stateId"`
     } `json:"updatedFrom"`
 }
 
@@ -90,11 +94,16 @@ func handleLinearWebhook(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-	// For updates, only continue if the assignee field actually changed
-	if issue.Action == "update" && issue.UpdatedFrom.AssigneeID == nil {
-		log.Printf("Assignee didn't change on %s, skipping", issue.Data.Identifier)
-		w.WriteHeader(http.StatusNoContent)
-		return
+	// For updates, only continue if the assignee changed or the issue moved to "In Progress"
+	if issue.Action == "update" {
+		assigneeChanged := issue.UpdatedFrom.AssigneeID != nil
+		movedToInProgress := issue.UpdatedFrom.StateID != nil && issue.Data.State.Name == "In Progress"
+
+		if !assigneeChanged && !movedToInProgress {
+			log.Printf("No relevant change on %s, skipping", issue.Data.Identifier)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 	}
 
     // Create Todoist task
