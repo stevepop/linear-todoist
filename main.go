@@ -70,8 +70,6 @@ func handleLinearWebhook(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-	log.Printf("Type: %s, AssigneeID: %s, Expected: %s", issue.Type, issue.Data.AssigneeID, os.Getenv("LINEAR_USER_ID"))
-
     // Only handle Issue events assigned to you
     if issue.Type != "Issue" || issue.Data.AssigneeID != os.Getenv("LINEAR_USER_ID") {
         w.WriteHeader(http.StatusNoContent)
@@ -162,10 +160,6 @@ func createTask(identifier, title, url string) error {
         return err
     }
     defer resp.Body.Close()
-
-	 // Debug: log the full response body
-    respBody, _ := io.ReadAll(resp.Body)
-    log.Printf("Todoist response status: %d, body: %s", resp.StatusCode, string(respBody))
 
     if resp.StatusCode != http.StatusOK {
         return fmt.Errorf("todoist returned status %d", resp.StatusCode)
