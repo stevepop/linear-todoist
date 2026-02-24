@@ -75,7 +75,7 @@ Created Todoist tasks follow this format:
 
 - **Title:** `[ISSUE-ID] Issue title`
 - **Description:** Link to the Linear issue
-- **Due:** Today at 6pm
+- **Due:** Today at 6pm (Default due time)
 
 ## License
 
