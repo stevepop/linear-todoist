@@ -115,22 +115,14 @@ func handleIssueEvent(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	// Ignore deletes
-	if issue.Action == "remove" {
+	// Only trigger when the issue moves to "In Progress"
+	movedToInProgress := issue.Action == "update" &&
+		issue.UpdatedFrom.StateID != nil &&
+		issue.Data.State.Name == "In Progress"
+
+	if !movedToInProgress {
 		w.WriteHeader(http.StatusNoContent)
 		return
-	}
-
-	// For updates, only continue if the assignee changed or the issue moved to "In Progress"
-	if issue.Action == "update" {
-		assigneeChanged := issue.UpdatedFrom.AssigneeID != nil
-		movedToInProgress := issue.UpdatedFrom.StateID != nil && issue.Data.State.Name == "In Progress"
-
-		if !assigneeChanged && !movedToInProgress {
-			log.Printf("No relevant change on %s, skipping", issue.Data.Identifier)
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
 	}
 
 	// Check if task already exists in Todoist (active or completed)
@@ -202,13 +194,10 @@ func verifySignature(body []byte, signature string) bool {
 }
 
 func taskExists(identifier string) bool {
-	projectID := os.Getenv("TODOIST_PROJECT_ID")
-	token := os.Getenv("TODOIST_API_TOKEN")
+	url := fmt.Sprintf("https://api.todoist.com/api/v1/tasks?project_id=%s", os.Getenv("TODOIST_PROJECT_ID"))
 
-	// Check active tasks
-	activeURL := fmt.Sprintf("https://api.todoist.com/api/v1/tasks?project_id=%s", projectID)
-	req, _ := http.NewRequest("GET", activeURL, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("TODOIST_API_TOKEN"))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -216,39 +205,16 @@ func taskExists(identifier string) bool {
 	}
 	defer resp.Body.Close()
 
-	var activeTasks []struct {
+	var tasks []struct {
 		Content string `json:"content"`
 	}
-	json.NewDecoder(resp.Body).Decode(&activeTasks)
-	for _, task := range activeTasks {
+	json.NewDecoder(resp.Body).Decode(&tasks)
+
+	for _, task := range tasks {
 		if strings.Contains(task.Content, identifier) {
 			return true
 		}
 	}
-
-	// Check completed tasks
-	completedURL := fmt.Sprintf("https://api.todoist.com/sync/v9/items/completed/get_all?project_id=%s", projectID)
-	req2, _ := http.NewRequest("GET", completedURL, nil)
-	req2.Header.Set("Authorization", "Bearer "+token)
-
-	resp2, err := http.DefaultClient.Do(req2)
-	if err != nil {
-		return false
-	}
-	defer resp2.Body.Close()
-
-	var completedResp struct {
-		Items []struct {
-			Content string `json:"content"`
-		} `json:"items"`
-	}
-	json.NewDecoder(resp2.Body).Decode(&completedResp)
-	for _, item := range completedResp.Items {
-		if strings.Contains(item.Content, identifier) {
-			return true
-		}
-	}
-
 	return false
 }
 
