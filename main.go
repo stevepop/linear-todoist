@@ -121,9 +121,12 @@ func handleIssueEvent(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	// For updates, only continue if the assignee changed
+	// For updates, only continue if the assignee changed or the issue moved to "In Progress"
 	if issue.Action == "update" {
-		if issue.UpdatedFrom.AssigneeID == nil {
+		assigneeChanged := issue.UpdatedFrom.AssigneeID != nil
+		movedToInProgress := issue.UpdatedFrom.StateID != nil && issue.Data.State.Name == "In Progress"
+
+		if !assigneeChanged && !movedToInProgress {
 			log.Printf("No relevant change on %s, skipping", issue.Data.Identifier)
 			w.WriteHeader(http.StatusNoContent)
 			return
